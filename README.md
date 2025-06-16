@@ -94,6 +94,22 @@ To use Gemini, set your config as follows:
 Requires: pip install google-generativeai
 See https://ai.google.dev/ for more info.
 
+Ollama (local model) support
+To run against a locally hosted model via [Ollama](https://ollama.com/), create a config like this:
+```json
+{
+  "client": "ollama",
+  "model": "llama3",
+  "base-url": "http://localhost:11434",
+  "model-costs": {"input": 0.0, "output": 0.0},
+  "embeddings-client": "ollama",
+  "embeddings": "llama3",
+  "embeddings-costs": {"input": 0.0, "output": 0.0},
+  "experiment-name": "simulacra-test",
+  "cost-upperbound": 0
+}
+```
+
 Feel free to change and test also other models (and change accordingly the input and output costs). Note that this repo uses OpenAI's Structured Outputs feature, which is currently only available for certain models, like the GPT-4o series. Check the OpenAI docs for more info. \
 The generation and the embedding models are configured separately to be able to use different clients.\
 Change also the `cost-upperbound` according to your needs (the cost computation is done using "[openai-cost-logger](https://github.com/drudilorenzo/openai-cost-logger)" and the costs are specified per million tokens).
