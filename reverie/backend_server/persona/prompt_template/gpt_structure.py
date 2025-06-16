@@ -393,7 +393,11 @@ def GPT_request(prompt, gpt_parameter):
   temp_sleep()
 
   try:
-    if use_openai:
+    if openai_config["client"] == "gemini":
+      model = client.GenerativeModel(openai_config["model"])
+      response = model.generate_content(prompt)
+      content = response.text
+    elif use_openai:
       messages = [{
         "role": "system", "content": prompt
       }]
@@ -408,11 +412,12 @@ def GPT_request(prompt, gpt_parameter):
                   stream=gpt_parameter["stream"],
                   stop=gpt_parameter["stop"],
               )
+      content = response.choices[0].message.content
     else:
       response = client.completions.create(model=model, prompt=prompt)
+      content = response.choices[0].message.content
 
     print("Response: ", response, flush=True)
-    content = response.choices[0].message.content
     return content
 
   except Exception as e:
@@ -437,7 +442,13 @@ def GPT_structured_request(prompt, gpt_parameter, response_format):
   temp_sleep()
 
   try:
-    if use_openai:
+    if openai_config["client"] == "gemini":
+      model = client.GenerativeModel(openai_config["model"])
+      response = model.generate_content(prompt)
+      content = response.text
+      print("Response: ", response, flush=True)
+      return content
+    elif use_openai:
       messages = [{
         "role": "system", "content": prompt
       }]
@@ -453,17 +464,22 @@ def GPT_structured_request(prompt, gpt_parameter, response_format):
         # stream=gpt_parameter["stream"],
         stop=gpt_parameter["stop"],
       )
+      print("Response: ", response, flush=True)
+      message = response.choices[0].message
+      if message.parsed:
+        return message.parsed
+      if message.refusal:
+        raise ValueError("Request refused: " + message.refusal)
+      raise ValueError("No parsed content or refusal found.")
     else:
       response = client.completions.create(model=model, prompt=prompt)
-
-    print("Response: ", response, flush=True)
-    message = response.choices[0].message
-
-    if message.parsed:
-      return message.parsed
-    if message.refusal:
-      raise ValueError("Request refused: " + message.refusal)
-    raise ValueError("No parsed content or refusal found.")
+      print("Response: ", response, flush=True)
+      message = response.choices[0].message
+      if message.parsed:
+        return message.parsed
+      if message.refusal:
+        raise ValueError("Request refused: " + message.refusal)
+      raise ValueError("No parsed content or refusal found.")
   except Exception as e:
     print("Error:", e, flush=True)
     traceback.print_exc()
@@ -578,14 +594,15 @@ def get_embedding(text, model=openai_config["embeddings"]):
   if openai_config["embeddings-client"] == "gemini":
     response = genai.embed_content(model=model, content=text)
     embedding = response["embedding"]
+    # Skip cost logging for Gemini/Google embeddings (no .usage attr)
   else:
     response = embeddings_client.embeddings.create(input=[text], model=model)
     embedding = response.data[0].embedding
-  cost_logger.update_cost(
-    response=response,
-    input_cost=openai_config["embeddings-costs"]["input"],
-    output_cost=openai_config["embeddings-costs"]["output"],
-  )
+    cost_logger.update_cost(
+      response=response,
+      input_cost=openai_config["embeddings-costs"]["input"],
+      output_cost=openai_config["embeddings-costs"]["output"],
+    )
   return embedding
 
 # def get_embedding(documents):
