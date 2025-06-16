@@ -19,9 +19,12 @@ try:
 except ImportError:
     genai = None
 
-config_path = Path("../../openai_config.json")
+config_path = Path("../../generativeAi_config.json")
 with open(config_path, "r") as f:
-  openai_config = json.load(f) 
+  generative_ai_config = json.load(f)
+
+# Backwards compatibility
+openai_config = generative_ai_config
 
 client = OpenAI(api_key=openai_api_key)
 
@@ -96,7 +99,7 @@ elif openai_config["client"] == "gemini":
 else:
   raise ValueError("Invalid client")
 
-if openai_config["embeddings-client"] == "azure":  
+if openai_config["embeddings-client"] == "azure":
   embeddings_client = setup_client("azure", {
     "endpoint": openai_config["embeddings-endpoint"],
     "key": openai_config["embeddings-key"],
@@ -104,6 +107,8 @@ if openai_config["embeddings-client"] == "azure":
   })
 elif openai_config["embeddings-client"] == "openai":
   embeddings_client = setup_client("openai", { "key": openai_config["embeddings-key"] })
+elif openai_config["embeddings-client"] == "gemini":
+  embeddings_client = setup_client("gemini", { "key": openai_config["embeddings-key"] })
 else:
   raise ValueError("Invalid embeddings client")
 
@@ -570,9 +575,18 @@ def get_embedding(text, model=openai_config["embeddings"]):
   text = text.replace("\n", " ")
   if not text:
     text = "this is blank"
-  response = embeddings_client.embeddings.create(input=[text], model=model)
-  cost_logger.update_cost(response=response, input_cost=openai_config["embeddings-costs"]["input"], output_cost=openai_config["embeddings-costs"]["output"])
-  return response.data[0].embedding
+  if openai_config["embeddings-client"] == "gemini":
+    response = genai.embed_content(model=model, content=text)
+    embedding = response["embedding"]
+  else:
+    response = embeddings_client.embeddings.create(input=[text], model=model)
+    embedding = response.data[0].embedding
+  cost_logger.update_cost(
+    response=response,
+    input_cost=openai_config["embeddings-costs"]["input"],
+    output_cost=openai_config["embeddings-costs"]["output"],
+  )
+  return embedding
 
 # def get_embedding(documents):
 #   api_url = "http://<instance-ip>:8000/embed"
