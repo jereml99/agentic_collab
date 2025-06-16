@@ -10,6 +10,10 @@ from pathlib import Path
 import time
 import traceback
 from openai import AzureOpenAI, OpenAI
+try:
+    import ollama
+except ImportError:
+    ollama = None
 from utils import openai_api_key, use_openai, api_model
 from openai_cost_logger import DEFAULT_LOG_PATH
 from persona.prompt_template.openai_logger_singleton import OpenAICostLogger_Singleton
@@ -68,7 +72,7 @@ if not use_openai:
 #   return response['text']
 
 def setup_client(type: str, config: dict):
-    """Setup the LLM client (OpenAI, Azure, or Gemini)."""
+    """Setup the LLM client (OpenAI, Azure, Gemini, or Ollama)."""
     if type == "azure":
         client = AzureOpenAI(
             azure_endpoint=config["endpoint"],
@@ -82,6 +86,11 @@ def setup_client(type: str, config: dict):
             raise ImportError("google-generativeai is not installed.")
         genai.configure(api_key=config["key"])
         client = genai
+    elif type == "ollama":
+        if ollama is None:
+            raise ImportError("ollama is not installed.")
+        base_url = config.get("base_url", "http://localhost:11434")
+        client = ollama.Client(base_url=base_url)
     else:
         raise ValueError("Invalid client")
     return client
@@ -96,6 +105,8 @@ elif openai_config["client"] == "openai":
     client = setup_client("openai", { "key": openai_config["model-key"] })
 elif openai_config["client"] == "gemini":
     client = setup_client("gemini", { "key": openai_config["model-key"] })
+elif openai_config["client"] == "ollama":
+    client = setup_client("ollama", { "base_url": openai_config.get("base-url") })
 else:
   raise ValueError("Invalid client")
 
@@ -109,6 +120,8 @@ elif openai_config["embeddings-client"] == "openai":
   embeddings_client = setup_client("openai", { "key": openai_config["embeddings-key"] })
 elif openai_config["embeddings-client"] == "gemini":
   embeddings_client = setup_client("gemini", { "key": openai_config["embeddings-key"] })
+elif openai_config["embeddings-client"] == "ollama":
+  embeddings_client = setup_client("ollama", { "base_url": openai_config.get("base-url") })
 else:
   raise ValueError("Invalid embeddings client")
 
@@ -131,6 +144,9 @@ def ChatGPT_single_request(prompt):
         model = client.GenerativeModel(openai_config["model"])
         response = model.generate_content(prompt)
         content = response.text
+    elif openai_config["client"] == "ollama":
+        response = client.chat(model=openai_config["model"], messages=[{"role": "user", "content": prompt}])
+        content = response.message.content
     else:
         completion = client.chat.completions.create(
             model=openai_config["model"],
@@ -171,6 +187,9 @@ def ChatGPT_request(prompt):
             model = client.GenerativeModel(openai_config["model"])
             response = model.generate_content(prompt)
             content = response.text
+        elif openai_config["client"] == "ollama":
+            response = client.chat(model=openai_config["model"], messages=[{"role": "user", "content": prompt}])
+            content = response.message.content
         else:
             completion = client.chat.completions.create(
                 model=openai_config["model"],
@@ -204,7 +223,14 @@ def ChatGPT_structured_request(prompt, response_format):
   print("--- ChatGPT_structured_request() ---")
   print("Prompt:", prompt, flush=True)
 
-  try: 
+  try:
+    if openai_config["client"] == "ollama":
+      response = client.chat(
+        model=openai_config["model"],
+        messages=[{"role": "user", "content": prompt}],
+        format=response_format,
+      )
+      return response.message.content
     completion = client.beta.chat.completions.parse(
       model=openai_config["model"],
       response_format=response_format,
@@ -397,6 +423,9 @@ def GPT_request(prompt, gpt_parameter):
       model = client.GenerativeModel(openai_config["model"])
       response = model.generate_content(prompt)
       content = response.text
+    elif openai_config["client"] == "ollama":
+      response = client.chat(model=openai_config["model"], messages=[{"role": "system", "content": prompt}])
+      content = response.message.content
     elif use_openai:
       messages = [{
         "role": "system", "content": prompt
@@ -448,6 +477,14 @@ def GPT_structured_request(prompt, gpt_parameter, response_format):
       content = response.text
       print("Response: ", response, flush=True)
       return content
+    elif openai_config["client"] == "ollama":
+      response = client.chat(
+        model=openai_config["model"],
+        messages=[{"role": "system", "content": prompt}],
+        format=response_format,
+      )
+      print("Response: ", response, flush=True)
+      return response.message.content
     elif use_openai:
       messages = [{
         "role": "system", "content": prompt
@@ -595,6 +632,9 @@ def get_embedding(text, model=openai_config["embeddings"]):
     response = genai.embed_content(model=model, content=text)
     embedding = response["embedding"]
     # Skip cost logging for Gemini/Google embeddings (no .usage attr)
+  elif openai_config["embeddings-client"] == "ollama":
+    response = embeddings_client.embed(model=model, input=text)
+    embedding = response.embeddings[0]
   else:
     response = embeddings_client.embeddings.create(input=[text], model=model)
     embedding = response.data[0].embedding
