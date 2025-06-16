@@ -26,9 +26,9 @@ Note: If you change the environment name from `simulacra`, you'll need to update
 ```
 
 
-### Step 2. OpenAI Config
+### Step 2. Generative AI Config
 
-Create a file called `openai_config.json` in the root directory.
+Create a file called `generativeAi_config.json` in the root directory.
 
 OpenAI example:
 ```json
@@ -85,6 +85,9 @@ To use Gemini, set your config as follows:
   "client": "gemini",
   "model": "gemini-1.5-pro-latest",  # or another Gemini model
   "model-key": "<GEMINI-API-KEY>",
+  "embeddings-client": "gemini",
+  "embeddings": "models/embedding-001",
+  "embeddings-key": "<GEMINI-API-KEY>",
   ...
 }
 ```

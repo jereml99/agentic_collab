@@ -9,9 +9,12 @@ import os
 from pathlib import Path
 from pydantic import BaseModel, field_validator
 
-config_path = Path("../../openai_config.json")
+config_path = Path("../../generativeAi_config.json")
 with open(config_path, "r") as f:
-  openai_config = json.load(f)
+  generative_ai_config = json.load(f)
+
+# Backwards compatibility
+openai_config = generative_ai_config
 
 
 def get_prompt_file_path(curr_file):
