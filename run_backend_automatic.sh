@@ -3,7 +3,16 @@
 BACKEND_SCRIPT_PATH="reverie/backend_server"
 BACKEND_SCRIPT_FILE="automatic_execution.py"
 CONDA_ENV="simulacra"
-CONDA_PATH="/home/${USER}/anaconda3/bin/activate"
+# Load environment variables from .env if present
+if [ -f "$(dirname "$0")/.env" ]; then
+    export $(grep -v '^#' "$(dirname "$0")/.env" | xargs)
+fi
+# Use CONDA_ACTIVATE_PATH env variable if set, otherwise default
+if [ -n "$CONDA_ACTIVATE_PATH" ]; then
+    CONDA_PATH="$CONDA_ACTIVATE_PATH"
+else
+    CONDA_PATH="/home/${USER}/anaconda3/bin/activate"
+fi
 LOGS_PATH="../../logs"
 
 FILE_NAME="Bash-Script"
@@ -82,4 +91,4 @@ echo "(${FILE_NAME}): Arguments: ${ARGS}"
 timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
 echo "(${FILE_NAME}): Timestamp: ${timestamp}"
 mkdir -p ${LOGS_PATH}
-python3 ${BACKEND_SCRIPT_FILE} ${ARGS} 2>&1 | tee ${LOGS_PATH}/${TARGET}_${timestamp}.txt
+python ${BACKEND_SCRIPT_FILE} ${ARGS} 2>&1 | tee ${LOGS_PATH}/${TARGET}_${timestamp}.txt

@@ -3,10 +3,21 @@
 FRONTEND_SCRIPT_PATH="environment/frontend_server"
 FRONTEND_SCRIPT_FILE="manage.py"
 CONDA_ENV="simulacra"
-CONDA_PATH="/home/${USER}/anaconda3/bin/activate"
 
 FILE_NAME="Bash-Script-Frontend"
 echo "(${FILE_NAME}): Running frontend server"
+
+# Load environment variables from .env if present
+if [ -f "$(dirname "$0")/.env" ]; then
+    export $(grep -v '^#' "$(dirname "$0")/.env" | xargs)
+fi
+
+# Use CONDA_ACTIVATE_PATH env variable if set, otherwise default
+if [ -n "$CONDA_ACTIVATE_PATH" ]; then
+    CONDA_PATH="$CONDA_ACTIVATE_PATH"
+else
+    CONDA_PATH="/home/${USER}/anaconda3/bin/activate"
+fi
 
 # Parse conda-specific arguments first
 while [[ $# -gt 0 ]]; do
@@ -39,4 +50,4 @@ else
     PORT=$1
 fi
 
-python3 ${FRONTEND_SCRIPT_FILE} runserver ${PORT}
+python ${FRONTEND_SCRIPT_FILE} runserver ${PORT}

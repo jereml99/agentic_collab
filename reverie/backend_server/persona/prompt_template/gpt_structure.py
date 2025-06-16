@@ -13,6 +13,11 @@ from openai import AzureOpenAI, OpenAI
 from utils import openai_api_key, use_openai, api_model
 from openai_cost_logger import DEFAULT_LOG_PATH
 from persona.prompt_template.openai_logger_singleton import OpenAICostLogger_Singleton
+# Gemini (Google AI) support
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 
 config_path = Path("../../openai_config.json")
 with open(config_path, "r") as f:
@@ -60,40 +65,36 @@ if not use_openai:
 #   return response['text']
 
 def setup_client(type: str, config: dict):
-  """Setup the OpenAI client.
-
-  Args:
-      type (str): the type of client. Either "azure" or "openai".
-      config (dict): the configuration for the client.
-
-  Raises:
-      ValueError: if the client is invalid.
-
-  Returns:
-      The client object created, either AzureOpenAI or OpenAI.
-  """
-  if type == "azure":
-    client = AzureOpenAI(
-      azure_endpoint=config["endpoint"],
-      api_key=config["key"],
-      api_version=config["api-version"],
-    )
-  elif type == "openai":
-    client = OpenAI(
-      api_key=config["key"],
-    )
-  else:
-    raise ValueError("Invalid client")
-  return client
+    """Setup the LLM client (OpenAI, Azure, or Gemini)."""
+    if type == "azure":
+        client = AzureOpenAI(
+            azure_endpoint=config["endpoint"],
+            api_key=config["key"],
+            api_version=config["api-version"],
+        )
+    elif type == "openai":
+        client = OpenAI(api_key=config["key"])
+    elif type == "gemini":
+        if genai is None:
+            raise ImportError("google-generativeai is not installed.")
+        genai.configure(api_key=config["key"])
+        client = genai
+    else:
+        raise ValueError("Invalid client")
+    return client
 
 if openai_config["client"] == "azure":
-  client = setup_client("azure", {
-    "endpoint": openai_config["model-endpoint"],
-    "key": openai_config["model-key"],
-    "api-version": openai_config["model-api-version"],
-  })
+    client = setup_client("azure", {
+        "endpoint": openai_config["model-endpoint"],
+        "key": openai_config["model-key"],
+        "api-version": openai_config["model-api-version"],
+    })
 elif openai_config["client"] == "openai":
-  client = setup_client("openai", { "key": openai_config["model-key"] })
+    client = setup_client("openai", { "key": openai_config["model-key"] })
+elif openai_config["client"] == "gemini":
+    client = setup_client("gemini", { "key": openai_config["model-key"] })
+else:
+  raise ValueError("Invalid client")
 
 if openai_config["embeddings-client"] == "azure":  
   embeddings_client = setup_client("azure", {
@@ -118,25 +119,26 @@ def temp_sleep(seconds=0.1):
 
 
 def ChatGPT_single_request(prompt):
-  temp_sleep()
-
-  print("--- ChatGPT_single_request() ---")
-  print("Prompt:", prompt, flush=True)
-
-  completion = client.chat.completions.create(
-    model=openai_config["model"],
-    messages=[{"role": "user", "content": prompt}],
-  )
-
-  content = completion.choices[0].message.content
-  print("Response content:", content, flush=True)
-
-  if content:
-    content = content.strip("`").removeprefix("json").strip()
-    return content
-  else:
-    print("Error: No message content from LLM.", flush=True)
-    return ""
+    temp_sleep()
+    print("--- ChatGPT_single_request() ---")
+    print("Prompt:", prompt, flush=True)
+    if openai_config["client"] == "gemini":
+        model = client.GenerativeModel(openai_config["model"])
+        response = model.generate_content(prompt)
+        content = response.text
+    else:
+        completion = client.chat.completions.create(
+            model=openai_config["model"],
+            messages=[{"role": "user", "content": prompt}],
+        )
+        content = completion.choices[0].message.content
+    print("Response content:", content, flush=True)
+    if content:
+        content = content.strip("`").removeprefix("json").strip()
+        return content
+    else:
+        print("Error: No message content from LLM.", flush=True)
+        return ""
 
   # completion = openai.ChatCompletion.create(
   #   model= "gpt-3.5-turbo" if use_openai else model, 
@@ -157,39 +159,29 @@ def ChatGPT_single_request(prompt):
 
 
 def ChatGPT_request(prompt):
-  """
-  Given a prompt and a dictionary of GPT parameters, make a request to OpenAI
-  server and returns the response. 
-  ARGS:
-    prompt: a str prompt
-    gpt_parameter: a python dictionary with the keys indicating the names of  
-                   the parameter and the values indicating the parameter 
-                   values.   
-  RETURNS: 
-    a str of GPT-3's response. 
-  """
-  # temp_sleep()
-  print("--- ChatGPT_request() ---")
-  print("Prompt:", prompt, flush=True)
-
-  try: 
-    completion = client.chat.completions.create(
-      model=openai_config["model"],
-      messages=[{"role": "user", "content": prompt}]
-    )
-    content = completion.choices[0].message.content
-    print("Response content:", content, flush=True)
-    cost_logger.update_cost(
-      completion, input_cost=openai_config["model-costs"]["input"], output_cost=openai_config["model-costs"]["output"]
-    )
-    if content:
-      content = content.strip("`").removeprefix("json").strip()
-    return content
-  
-  except Exception as e: 
-    print(f"Error: {e}", flush=True)
-    traceback.print_exc()
-    return "LLM ERROR"
+    print("--- ChatGPT_request() ---")
+    print("Prompt:", prompt, flush=True)
+    try:
+        if openai_config["client"] == "gemini":
+            model = client.GenerativeModel(openai_config["model"])
+            response = model.generate_content(prompt)
+            content = response.text
+        else:
+            completion = client.chat.completions.create(
+                model=openai_config["model"],
+                messages=[{"role": "user", "content": prompt}]
+            )
+            content = completion.choices[0].message.content
+            cost_logger.update_cost(
+                completion, input_cost=openai_config["model-costs"]["input"], output_cost=openai_config["model-costs"]["output"]
+            )
+        if content:
+            content = content.strip("`").removeprefix("json").strip()
+        return content
+    except Exception as e:
+        print(f"Error: {e}", flush=True)
+        traceback.print_exc()
+        return "LLM ERROR"
 
 def ChatGPT_structured_request(prompt, response_format):
   """

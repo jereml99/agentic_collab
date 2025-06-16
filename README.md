@@ -1,5 +1,3 @@
-
-
 # Generative Agents Collaboratively Mission-Planning 
 
 <p align="center" width="100%">
@@ -79,6 +77,19 @@ Azure example:
     "cost-upperbound": 10
 }
 ```
+
+Gemini (Google AI) support
+To use Gemini, set your config as follows:
+```json
+{
+  "client": "gemini",
+  "model": "gemini-1.5-pro-latest",  # or another Gemini model
+  "model-key": "<GEMINI-API-KEY>",
+  ...
+}
+```
+Requires: pip install google-generativeai
+See https://ai.google.dev/ for more info.
 
 Feel free to change and test also other models (and change accordingly the input and output costs). Note that this repo uses OpenAI's Structured Outputs feature, which is currently only available for certain models, like the GPT-4o series. Check the OpenAI docs for more info. \
 The generation and the embedding models are configured separately to be able to use different clients.\

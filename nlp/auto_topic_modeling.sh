@@ -18,7 +18,7 @@ done
 
 # Loop through the array of files
 for file in "${files[@]}"; do
-    python3 topic_modeling.py "$file"
+    python topic_modeling.py "$file"
 
 done
 

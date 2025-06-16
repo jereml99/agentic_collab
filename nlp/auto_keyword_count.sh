@@ -18,7 +18,7 @@ done
 
 # Loop through the array of files
 for file in "${files[@]}"; do
-    python3 analysis_convo.py "$file"
+    python analysis_convo.py "$file"
 
 done
 

@@ -18,7 +18,7 @@ done
 
 # Loop through the array of files
 for file in "${files[@]}"; do
-    python3 raw_text_scrape.py "$file"
+    python raw_text_scrape.py "$file"
 
 done
 
